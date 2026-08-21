@@ -22,12 +22,14 @@ const AD_TRACKING_DOMAINS = [
   'scorecardresearch.com',
 ];
 
-// Text patterns that identify an opt-out / "your privacy choices" link.
-// Kept broad and case-insensitive on purpose — sites word this differently.
-// This list is the #1 source of false "fails" — sites use a lot of different
-// wording. When you hit a real miss during testing, add the exact link text
-// here rather than guessing at broader regexes.
-const OPT_OUT_LINK_PATTERNS = [
+// Text patterns split into two tiers. STRONG patterns are unambiguous —
+// they specifically name the opt-out mechanism, so a match is trustworthy
+// on its own. GENERIC patterns ("Privacy," "Cookies") are common on nearly
+// every site regardless of whether a real opt-out exists there — a plain
+// privacy-policy page will match these too. A generic match alone is NOT
+// treated as proof of a working opt-out; the linked page gets followed and
+// checked for real opt-out content before it counts as a pass.
+const OPT_OUT_LINK_PATTERNS_STRONG = [
   /do not sell/i,
   /do not sell or share/i,
   /your privacy choices/i,
@@ -38,21 +40,29 @@ const OPT_OUT_LINK_PATTERNS = [
   /cookie preferences/i,
   /manage cookies/i,
   /cookie settings/i,
-  /^cookies?$/i,
-  /^privacy$/i,
-  /^privacy policy$/i,
-  /^your privacy$/i,
   /^ccpa$/i,
   /data (privacy|choices|rights|permissions)/i,
-  /your data/i,
   /privacy (center|hub|portal)/i,
   /ad choices/i,
   /interest.based ads?/i,
 ];
 
+const OPT_OUT_LINK_PATTERNS_GENERIC = [
+  /^cookies?$/i,
+  /^privacy$/i,
+  /^privacy policy$/i,
+  /^your privacy$/i,
+  /your data/i,
+];
+
+// Kept for backward compatibility with anything referencing the combined list.
+const OPT_OUT_LINK_PATTERNS = [...OPT_OUT_LINK_PATTERNS_STRONG, ...OPT_OUT_LINK_PATTERNS_GENERIC];
+
 // Fallback: many sites label the link generically ("More," an icon, a toggle
 // badge) where text matching alone fails. This checks the URL itself for
 // known opt-out-related paths/params, independent of what the link says.
+// Href matches are treated as strong — a URL containing "do-not-sell" is
+// unambiguous even if the visible link text is empty or generic.
 const OPT_OUT_HREF_PATTERNS = [
   /do-?not-?sell/i,
   /opt-?out/i,
@@ -62,6 +72,25 @@ const OPT_OUT_HREF_PATTERNS = [
   /cookie-?(settings|preferences|consent)/i,
   /gpc/i,
 ];
+
+// Used to verify a GENERIC-matched link's destination actually contains a
+// real opt-out mechanism, rather than just being a standard privacy policy
+// page. Looking for content, not just the word "privacy" again.
+const OPT_OUT_CONTENT_PATTERNS = [
+  /do not sell/i,
+  /do not share/i,
+  /opt.?out of (the )?(sale|sharing)/i,
+  /global privacy control/i,
+  /\bgpc\b/i,
+  /right to opt.?out/i,
+  /manage (your )?(cookie|tracking|ad) preferences/i,
+];
+
+// Confirms a page contains a visible, human-readable statement that an
+// opt-out request was received/applied — not just background processing.
+function hasVisibleOptOutConfirmation(bodyText) {
+  return /opt.?out (request )?(honou?red|applied|confirmed|received|processed)/i.test(bodyText);
+}
 
 // Known consent management platform fingerprints, used only to explain
 // *why* something failed in plain language, never to guess a fix.
@@ -97,23 +126,53 @@ async function findOptOutLink(page) {
       as.map((a) => ({ text: (a.innerText || '').trim(), href: a.href }))
     );
 
-    // Pass 1: match on visible link text (most reliable when it works)
-    for (const pattern of OPT_OUT_LINK_PATTERNS) {
+    // Pass 1: strong text match — trustworthy on its own
+    for (const pattern of OPT_OUT_LINK_PATTERNS_STRONG) {
       const hit = links.find((l) => pattern.test(l.text));
-      if (hit) return hit;
+      if (hit) return { ...hit, matchStrength: 'strong', matchedVia: 'text' };
     }
 
-    // Pass 2: fall back to matching the URL itself — catches generically
-    // labeled links ("More," an icon-only link, a toggle badge) that text
-    // matching alone misses.
+    // Pass 2: href match — unambiguous even without matching text
     for (const pattern of OPT_OUT_HREF_PATTERNS) {
       const hit = links.find((l) => pattern.test(l.href));
-      if (hit) return hit;
+      if (hit) return { ...hit, matchStrength: 'strong', matchedVia: 'href' };
+    }
+
+    // Pass 3: generic text match — needs the destination page verified
+    // before it counts as a real opt-out mechanism, not just a policy page.
+    for (const pattern of OPT_OUT_LINK_PATTERNS_GENERIC) {
+      const hit = links.find((l) => pattern.test(l.text));
+      if (hit) return { ...hit, matchStrength: 'generic', matchedVia: 'text' };
     }
 
     return null;
   } catch (e) {
     return null;
+  }
+}
+
+/**
+ * Follows a GENERIC-matched link and checks whether the destination page
+ * actually contains real opt-out content (not just standard privacy-policy
+ * boilerplate). Also checks for a visible opt-out confirmation on that same
+ * page, since that's where such a message would actually live — not the
+ * homepage.
+ */
+async function verifyGenericLinkDestination(browser, href) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  try {
+    await page.goto(href, { waitUntil: 'networkidle', timeout: 20000 });
+    const bodyText = await page.evaluate(() => document.body.innerText || '');
+
+    const hasRealOptOutContent = OPT_OUT_CONTENT_PATTERNS.some((p) => p.test(bodyText));
+    const hasConfirmation = hasVisibleOptOutConfirmation(bodyText);
+
+    await context.close();
+    return { verified: hasRealOptOutContent, hasConfirmation, reachable: true };
+  } catch (e) {
+    await context.close().catch(() => {});
+    return { verified: false, hasConfirmation: false, reachable: false };
   }
 }
 
@@ -200,15 +259,36 @@ async function runScan(targetUrl) {
       });
     }
 
-    findings.push({
-      checkName: 'linkPresence',
-      status: optOutLink ? 'pass' : 'fail',
-      detail: optOutLink
-        ? `Found an opt-out link: "${optOutLink.text || '(unlabeled link, matched by URL)'}"`
-        : loginGate.gated
-          ? 'No opt-out link found on this page — but note it looks like a login-gated screen, see the separate finding below. This may reflect the login page rather than the real public homepage.'
-          : 'No "Do Not Sell/Share," "Your Privacy Choices," or similar opt-out link was found on the homepage.',
-    });
+    // If the only match was generic ("Privacy," "Cookies" — links present on
+    // nearly every site regardless of compliance), follow it and check
+    // whether the destination page actually contains real opt-out content.
+    // Without this, a plain privacy-policy page with no opt-out mechanism
+    // at all would incorrectly count as a pass.
+    let linkStatus = optOutLink ? 'pass' : 'fail';
+    let linkDetail = optOutLink
+      ? `Found an opt-out link: "${optOutLink.text || '(unlabeled link, matched by URL)'}"`
+      : loginGate.gated
+        ? 'No opt-out link found on this page — but note it looks like a login-gated screen, see the separate finding below. This may reflect the login page rather than the real public homepage.'
+        : 'No "Do Not Sell/Share," "Your Privacy Choices," or similar opt-out link was found on the homepage.';
+
+    let destinationConfirmation = null;
+    if (optOutLink && optOutLink.matchStrength === 'generic' && optOutLink.href) {
+      const verification = await verifyGenericLinkDestination(browser, optOutLink.href);
+      destinationConfirmation = verification.hasConfirmation;
+
+      if (!verification.reachable) {
+        linkStatus = 'unknown';
+        linkDetail = `Found a generically-labeled link ("${optOutLink.text}"), but its destination page could not be loaded to verify it actually contains an opt-out mechanism. Manual check recommended.`;
+      } else if (!verification.verified) {
+        linkStatus = 'fail';
+        linkDetail = `The link found ("${optOutLink.text}") leads to a standard privacy policy page with no actual "Do Not Sell," opt-out toggle, or GPC-related content. A generic privacy link is not the same as a working opt-out mechanism.`;
+      } else {
+        linkStatus = 'pass';
+        linkDetail = `Verified — the linked page ("${optOutLink.text}") contains real opt-out content, not just standard privacy-policy boilerplate.`;
+      }
+    }
+
+    findings.push({ checkName: 'linkPresence', status: linkStatus, detail: linkDetail });
 
     await baselineContext.close();
 
@@ -235,9 +315,12 @@ async function runScan(targetUrl) {
           : 'No known ad-tech tracking requests fired while sending the GPC signal — consistent with honoring the opt-out.',
       });
 
-      // California 2026: visible confirmation requirement
+      // California 2026: visible confirmation requirement.
+      // Check the homepage-under-GPC content, and also the verified opt-out
+      // destination page if we found and confirmed one above — that's where
+      // a confirmation message is more likely to actually live.
       const bodyText = await gpcPage.evaluate(() => document.body.innerText || '');
-      const hasVisibleConfirmation = /opt.?out (request )?(honou?red|applied|confirmed)/i.test(bodyText);
+      const hasVisibleConfirmation = hasVisibleOptOutConfirmation(bodyText) || destinationConfirmation === true;
       findings.push({
         checkName: 'visibleConfirmation',
         status: hasVisibleConfirmation ? 'pass' : 'unknown',
@@ -333,3 +416,4 @@ async function runScan(targetUrl) {
 }
 
 module.exports = { runScan };
+    
