@@ -63,6 +63,11 @@ const CHECK_STATE_RELEVANCE = {
     states: OPT_OUT_LINK_STATES,
     note: 'Requiring a consumer to hand over new personal data (e.g. full name + email) just to exercise an opt-out right is a commonly cited violation pattern.',
   },
+  loginGated: {
+    label: 'Opt-out reachable without creating an account',
+    states: OPT_OUT_LINK_STATES,
+    note: 'Requiring account creation or login before a consumer can submit an opt-out request is explicitly prohibited by most state comprehensive privacy laws.',
+  },
   persistence: {
     label: 'Opt-out preference persists (does not silently reset)',
     states: OPT_OUT_LINK_STATES,
