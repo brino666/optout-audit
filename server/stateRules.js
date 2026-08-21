@@ -53,6 +53,11 @@ const CHECK_STATE_RELEVANCE = {
     states: GPC_REQUIRED_STATES,
     note: 'These states require GPC to be treated as a legally valid opt-out request, not just a suggestion.',
   },
+  immediacy: {
+    label: 'Opt-out takes effect immediately (not a submit-and-wait request)',
+    states: OPT_OUT_LINK_STATES,
+    note: 'Opt-out of sale/sharing does not require the same identity-verification burden as data access or deletion requests. A CAPTCHA, legal declaration, email-confirmation step, or multi-day wait window bundled into the opt-out flow is a friction pattern regulators have targeted.',
+  },
   cookiesClearAfterOptOut: {
     label: 'Tracking cookies actually cleared after opt-out',
     states: OPT_OUT_LINK_STATES,
@@ -62,6 +67,11 @@ const CHECK_STATE_RELEVANCE = {
     label: 'Opt-out does not require submitting extra personal info',
     states: OPT_OUT_LINK_STATES,
     note: 'Requiring a consumer to hand over new personal data (e.g. full name + email) just to exercise an opt-out right is a commonly cited violation pattern.',
+  },
+  fragmentedSystems: {
+    label: 'CCPA request and cookie-consent banner are connected (not fragmented)',
+    states: OPT_OUT_LINK_STATES,
+    note: 'A site can have a technically working CCPA request form and a technically working cookie-consent banner that still fail consumers in practice, because the two systems don\'t sync. Regulators evaluate the effectiveness of the opt-out as experienced by the consumer, not just whether each piece exists in isolation.',
   },
   loginGated: {
     label: 'Opt-out reachable without creating an account',
@@ -76,3 +86,4 @@ const CHECK_STATE_RELEVANCE = {
 };
 
 module.exports = { GPC_REQUIRED_STATES, OPT_OUT_LINK_STATES, CHECK_STATE_RELEVANCE };
+    
