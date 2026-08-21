@@ -24,6 +24,9 @@ const AD_TRACKING_DOMAINS = [
 
 // Text patterns that identify an opt-out / "your privacy choices" link.
 // Kept broad and case-insensitive on purpose — sites word this differently.
+// This list is the #1 source of false "fails" — sites use a lot of different
+// wording. When you hit a real miss during testing, add the exact link text
+// here rather than guessing at broader regexes.
 const OPT_OUT_LINK_PATTERNS = [
   /do not sell/i,
   /do not sell or share/i,
@@ -33,6 +36,31 @@ const OPT_OUT_LINK_PATTERNS = [
   /manage (my )?privacy/i,
   /privacy preferences/i,
   /cookie preferences/i,
+  /manage cookies/i,
+  /cookie settings/i,
+  /^cookies?$/i,
+  /^privacy$/i,
+  /^privacy policy$/i,
+  /^your privacy$/i,
+  /^ccpa$/i,
+  /data (privacy|choices|rights|permissions)/i,
+  /your data/i,
+  /privacy (center|hub|portal)/i,
+  /ad choices/i,
+  /interest.based ads?/i,
+];
+
+// Fallback: many sites label the link generically ("More," an icon, a toggle
+// badge) where text matching alone fails. This checks the URL itself for
+// known opt-out-related paths/params, independent of what the link says.
+const OPT_OUT_HREF_PATTERNS = [
+  /do-?not-?sell/i,
+  /opt-?out/i,
+  /ccpa/i,
+  /privacy-?choices/i,
+  /privacy-?center/i,
+  /cookie-?(settings|preferences|consent)/i,
+  /gpc/i,
 ];
 
 // Known consent management platform fingerprints, used only to explain
@@ -68,13 +96,50 @@ async function findOptOutLink(page) {
     const links = await page.$$eval('a', (as) =>
       as.map((a) => ({ text: (a.innerText || '').trim(), href: a.href }))
     );
+
+    // Pass 1: match on visible link text (most reliable when it works)
     for (const pattern of OPT_OUT_LINK_PATTERNS) {
       const hit = links.find((l) => pattern.test(l.text));
       if (hit) return hit;
     }
+
+    // Pass 2: fall back to matching the URL itself — catches generically
+    // labeled links ("More," an icon-only link, a toggle badge) that text
+    // matching alone misses.
+    for (const pattern of OPT_OUT_HREF_PATTERNS) {
+      const hit = links.find((l) => pattern.test(l.href));
+      if (hit) return hit;
+    }
+
     return null;
   } catch (e) {
     return null;
+  }
+}
+
+// Detects whether the page is effectively a login wall — i.e. no opt-out
+// mechanism is reachable without creating/using an account first. This is
+// its own finding, not just a scanner limitation: most state privacy laws
+// explicitly prohibit requiring account creation to submit an opt-out
+// request, so a site that's ONLY a login screen with no public opt-out
+// path is a real compliance question, not a false fail.
+async function detectLoginGate(page) {
+  try {
+    const hasPasswordField = await page.$('input[type="password"]') !== null;
+    if (!hasPasswordField) return { gated: false };
+
+    const linkCount = await page.$$eval('a', (as) => as.length);
+    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim());
+    const wordCount = bodyText.split(/\s+/).filter(Boolean).length;
+
+    // Heuristic: a password field present, very few links, and sparse page
+    // text is consistent with a bare login screen rather than a marketing
+    // homepage that happens to also have a login form embedded in it.
+    const looksLikeBareLoginScreen = linkCount < 8 && wordCount < 150;
+
+    return { gated: looksLikeBareLoginScreen, linkCount, wordCount };
+  } catch (e) {
+    return { gated: false };
   }
 }
 
@@ -125,13 +190,24 @@ async function runScan(targetUrl) {
 
     const optOutLink = await findOptOutLink(baselinePage);
     const cmpName = await detectCMP(baselinePage);
+    const loginGate = await detectLoginGate(baselinePage);
+
+    if (loginGate.gated && !optOutLink) {
+      findings.push({
+        checkName: 'loginGated',
+        status: 'fail',
+        detail: 'This page appears to be a bare login screen with no public opt-out link reachable without an account. Most state privacy laws prohibit requiring account creation to submit an opt-out request — if this is genuinely the only entry point to the site, that\'s worth a manual review, not just a scanner miss.',
+      });
+    }
 
     findings.push({
       checkName: 'linkPresence',
       status: optOutLink ? 'pass' : 'fail',
       detail: optOutLink
-        ? `Found an opt-out link: "${optOutLink.text}"`
-        : 'No "Do Not Sell/Share," "Your Privacy Choices," or similar opt-out link was found on the homepage.',
+        ? `Found an opt-out link: "${optOutLink.text || '(unlabeled link, matched by URL)'}"`
+        : loginGate.gated
+          ? 'No opt-out link found on this page — but note it looks like a login-gated screen, see the separate finding below. This may reflect the login page rather than the real public homepage.'
+          : 'No "Do Not Sell/Share," "Your Privacy Choices," or similar opt-out link was found on the homepage.',
     });
 
     await baselineContext.close();
