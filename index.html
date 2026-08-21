@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Signal Check — Opt-Out Compliance Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="scan-line" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">Signal Check</span>
+    </div>
+    <span class="brand-tag">opt-out diagnostic</span>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Does your opt-out button actually do anything?</h1>
+      <p class="hero-sub">
+        Disney paid $2.75M in February 2026 for opt-outs that didn't propagate.
+        PlayOn Sports paid $1.1M for ignoring the Global Privacy Control signal.
+        This checks whether yours works — for real, not just visually.
+      </p>
+
+      <form id="scan-form" class="scan-form" autocomplete="off">
+        <label for="url-input" class="sr-only">Website URL</label>
+        <div class="input-row">
+          <span class="input-prompt" aria-hidden="true">scan&gt;</span>
+          <input
+            id="url-input"
+            name="url"
+            type="text"
+            inputmode="url"
+            placeholder="yourdomain.com"
+            required
+          />
+          <button type="submit" id="scan-button">Run check</button>
+        </div>
+      </form>
+
+      <p class="hero-note">One scan, one report. No account, no monitoring, no ongoing relationship.</p>
+    </section>
+
+    <section id="status" class="status" hidden></section>
+
+    <section id="report" class="report" hidden></section>
+
+    <section class="method">
+      <h2>What this checks</h2>
+      <ul class="method-list">
+        <li><strong>Link presence</strong> — is there a working "Do Not Sell/Share" or privacy choices link.</li>
+        <li><strong>GPC signal</strong> — does the site actually stop ad-tracking requests when the browser sends the Global Privacy Control header.</li>
+        <li><strong>Opt-out flow</strong> — clicking through the real flow and checking whether tracking requests stop afterward.</li>
+        <li><strong>Form friction</strong> — does opting out require handing over new personal info first.</li>
+      </ul>
+      <p class="method-disclaimer">
+        This is an automated technical check, not legal advice. It does not determine whether a given
+        state's law applies to your business. A clean result isn't a compliance guarantee — consult a
+        privacy attorney for that.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <span>Currently checked against requirements referenced by CA, CO, CT, DE, MD, MN, MT, NE, NH, NJ, OR, TX.</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
