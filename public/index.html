@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Signal Check — Opt-Out Compliance Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="scan-line" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">Signal Check</span>
+    </div>
+    <span class="brand-tag">opt-out diagnostic</span>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Does your opt-out button actually do anything?</h1>
+      <p class="hero-sub">
+        Disney paid $2.75M in February 2026 for opt-outs that didn't propagate.
+        PlayOn Sports paid $1.1M for ignoring the Global Privacy Control signal.
+        This checks whether yours works — for real, not just visually.
+      </p>
+
+      <form id="scan-form" class="scan-form" autocomplete="off">
+        <label for="url-input" class="sr-only">Website URL</label>
+        <div class="input-row">
+          <span class="input-prompt" aria-hidden="true">scan&gt;</span>
+          <input
+            id="url-input"
+            name="url"
+            type="text"
+            inputmode="url"
+            placeholder="yourdomain.com"
+            required
+          />
+          <button type="submit" id="scan-button">Run check</button>
+        </div>
+      </form>
+
+      <p class="hero-note">One scan, one report. No account, no monitoring, no ongoing relationship.</p>
+    </section>
+
+    <details class="info-drawer">
+      <summary>Does this even apply to your site? What this tool does and doesn't do</summary>
+      <div class="info-content">
+
+        <h3>Does the law actually apply to your business?</h3>
+        <p>
+          Not every website is covered. Under California's CCPA, a for-profit business only has
+          to comply if it meets <strong>at least one</strong> of these (as of 2026):
+        </p>
+        <ul>
+          <li>Annual gross revenue over <strong>$26,625,000</strong> (global revenue, not just California)</li>
+          <li>Buys, sells, or shares personal information of <strong>100,000+</strong> California consumers, households, or devices per year (this counts cookies and device IDs, not just customer accounts)</li>
+          <li>Derives <strong>50% or more</strong> of annual revenue from selling or sharing personal information</li>
+        </ul>
+        <p>
+          If none of these apply to you, CCPA's opt-out requirements likely don't either — a missing
+          or broken opt-out link on a small site under these thresholds is not automatically a violation.
+          Other states with similar laws (Colorado, Connecticut, Virginia, and others) have their own,
+          sometimes different, thresholds. This tool doesn't evaluate your thresholds for you — it only
+          checks the technical mechanism, assuming the law applies. Whether it actually applies to your
+          business is worth confirming with a privacy attorney, not assumed either way.
+        </p>
+
+        <h3>What this tool checks</h3>
+        <ul>
+          <li>Whether an opt-out / "Your Privacy Choices" link exists and is reachable</li>
+          <li>Whether the site honors the Global Privacy Control (GPC) browser signal</li>
+          <li>Whether tracking requests actually stop after completing the opt-out flow</li>
+          <li>Friction in the process itself — CAPTCHAs, legal declarations, forced account creation, multi-day wait windows</li>
+          <li>Whether a CCPA request system and a separate cookie-consent banner appear disconnected from each other</li>
+        </ul>
+
+        <h3>What this tool does NOT do</h3>
+        <ul>
+          <li>It is not legal advice, and a clean scan is not a compliance guarantee</li>
+          <li>It cannot verify whether an opt-out preference persists over days or weeks — only a single point in time</li>
+          <li>It cannot confirm delivery of confirmation emails (e.g. an opt-out request that requires clicking a link in an email) — only that such a step exists</li>
+          <li>It never submits forms, clicks consent toggles, or checks boxes that would change real settings — every scan runs in a fresh, isolated, anonymous session</li>
+          <li>It does not determine whether your business meets the legal thresholds above</li>
+        </ul>
+
+        <h3>Why doesn't this site have its own opt-out link?</h3>
+        <p>
+          Because there's nothing to opt out of. This site runs no analytics, no ad pixels, and sets
+          no tracking cookies — nothing here is sold or shared for advertising, so there's no "sale or
+          sharing" for CCPA's opt-out right to apply to. Payment (when added) is handled via a redirect
+          to a payment processor, not embedded tracking.
+        </p>
+
+      </div>
+    </details>
+
+    <section id="status" class="status" hidden></section>
+
+    <section id="report" class="report" hidden></section>
+
+    <section class="method">
+      <h2>What this checks</h2>
+      <ul class="method-list">
+        <li><strong>Link presence</strong> — is there a working "Do Not Sell/Share" or privacy choices link.</li>
+        <li><strong>GPC signal</strong> — does the site actually stop ad-tracking requests when the browser sends the Global Privacy Control header.</li>
+        <li><strong>Opt-out flow</strong> — clicking through the real flow and checking whether tracking requests stop afterward.</li>
+        <li><strong>Form friction</strong> — does opting out require handing over new personal info first.</li>
+      </ul>
+      <p class="method-disclaimer">
+        This is an automated technical check, not legal advice. It does not determine whether a given
+        state's law applies to your business. A clean result isn't a compliance guarantee — consult a
+        privacy attorney for that.
+      </p>
+      <p class="method-disclaimer">
+        Read the full statute: <a href="https://california.public.law/codes/civil_code_section_1798.135" target="_blank" rel="noopener" class="statute-link">California Civil Code § 1798.135</a>
+        (the section most directly governing opt-out mechanisms). Citations on individual findings above link to the specific section they reference.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <span>Currently checked against requirements referenced by CA, CO, CT, DE, MD, MN, MT, NE, NH, NJ, OR, TX.</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
