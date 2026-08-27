@@ -1,0 +1,21 @@
+{
+  "name": "optout-audit",
+  "version": "1.0.0",
+  "description": "Self-serve CCPA/state privacy law opt-out mechanism auditor. Paste a URL, get a plain-language diagnostic report of whether the site's opt-out (Do Not Sell/Share, GPC) actually works.",
+  "main": "server/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server/index.js",
+    "postinstall": "playwright install --with-deps chromium"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "playwright": "^1.47.0",
+    "dotenv": "^16.4.5",
+    "stripe": "^17.3.1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}
