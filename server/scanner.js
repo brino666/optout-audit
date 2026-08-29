@@ -37,6 +37,7 @@ const OPT_OUT_LINK_PATTERNS_STRONG = [
   /opt.?out of (the )?sale/i,
   /manage (my )?privacy/i,
   /privacy preferences/i,
+  /privacy practices/i,
   /cookie preferences/i,
   /manage cookies/i,
   /cookie settings/i,
